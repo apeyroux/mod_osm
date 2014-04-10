@@ -11,6 +11,7 @@
 #include <sqlite3.h>
 
 typedef struct {
+  int enabled;
   const char *to9mbtiles;
   const char *to14mbtiles;
   const char *zerombtiles;
@@ -19,12 +20,14 @@ typedef struct {
 static void osm_register_hooks (apr_pool_t *p);
 static int osm_handler(request_rec *r);
 const char *osm_set_0mbtiles_path(cmd_parms *cmd, void *cfg, const char *arg);
+const char *osm_set_enabled(cmd_parms *cmd, void *cfg, const char *arg);
 const char *osm_set_1to9mbtiles_path(cmd_parms *cmd, void *cfg, const char *arg);
 const char *osm_set_10to14mbtiles_path(cmd_parms *cmd, void *cfg, const char *arg);
 static int callback(void *r, int argc, char **argv, char **azColName);
 static osm_config config;
 
 static const command_rec osm_directives[] = {
+  AP_INIT_TAKE1("osmEnabled", osm_set_enabled, NULL, RSRC_CONF, "Enable or disable mod_osm"),
   AP_INIT_TAKE1("osmMbtiles0Path", osm_set_0mbtiles_path, NULL, RSRC_CONF, "The path to osm db."),
   AP_INIT_TAKE1("osmMbtiles1to9Path", osm_set_1to9mbtiles_path, NULL, RSRC_CONF, "The path to osm db."),
   AP_INIT_TAKE1("osmMbtiles10to14Path", osm_set_10to14mbtiles_path, NULL, RSRC_CONF, "The path to osm db."),
@@ -40,6 +43,14 @@ module AP_MODULE_DECLARE_DATA osm_module = {
   osm_directives,
   osm_register_hooks 
 };
+
+const char *osm_set_enabled(cmd_parms *cmd, void *cfg, const char *arg) {
+  if(!strcasecmp(arg, "true")) 
+    config.enabled = 1;
+  else 
+    config.enabled = 0;
+  return NULL;
+}
 
 const char *osm_set_0mbtiles_path(cmd_parms *cmd, void *cfg, const char *arg) {
   config.zerombtiles = arg;
@@ -97,7 +108,7 @@ static int readTile(sqlite3 *db, const int z, const int x, const int y, unsigned
 }
 
 static int osm_handler(request_rec *r) {
-  if (!r->handler || strcmp(r->handler, "osm-handler")) return(DECLINED);
+  if (!r->handler || config.enabled == 0) return(DECLINED);
 
   sqlite3 *db;
   unsigned char *tile;
