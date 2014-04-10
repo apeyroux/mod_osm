@@ -15,12 +15,6 @@ Module Apache pour rendre des mbtiles OSM
 	     OsmMbtiles0Path "/var/www/0.mbtiles" # path du mbtiles 0
 	     OsmMbtiles1to9Path "/var/www/osmfr-z1-z9.mbtiles" # path z1 à z9
 	     OsmMbtiles10to14Path "/var/www/osmfr-z10-z14.mbtiles" # path z10 à z14
-	     
-	     #
-	     # Je passe par un proxy http
-	     #
-	     ProxyRequests On 
-	     ProxyRemote * http://10.226.148.239:80
 
 	     # 
 	     # balancer 
@@ -37,12 +31,12 @@ Module Apache pour rendre des mbtiles OSM
 
 	     # tjrs utile suite ajout mbtiles ?
 	     LoadModule cache_module modules/mod_cache.so
-             <IfModule mod_disk_cache.c>
-                CacheRoot /var/www/cache/apache/osm
-                CacheEnable disk /
-                CacheDirLevels 3
-                CacheDirLength 2
-             </IfModule>	       
+         <IfModule mod_disk_cache.c>
+            CacheRoot /var/www/cache/apache/osm
+            CacheEnable disk /
+            CacheDirLevels 3
+			CacheDirLength 2
+	     </IfModule>
 
 </VirtualHost>	
 ```
