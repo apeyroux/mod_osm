@@ -116,6 +116,40 @@ static int osm_handler(request_rec *r) {
     return 404;
   }
 
+  /* Marche en 2.4.7 (unstable debian)
+  apr_table_t *GET;
+  ap_args_to_table(r, &GET);
+  const char *getQuery;
+  struct stat mbtilesStat;
+
+  getQuery = apr_table_get(GET, "q");
+
+  if(NULL != getQuery) {
+    ap_set_content_type(r, "text/html");
+    if(!strcmp(getQuery, "getinfo")) {
+      stat(config.mbtiles, &mbtilesStat);
+
+      ap_rprintf(r, "<h1>mod_osm - Information</h1><hr>");
+      ap_rprintf(r, "uri : %s<br>", r->uri);
+      ap_rprintf(r, "<hr>");
+      ap_rprintf(r, "mbtiles path: %s<br>", config.mbtiles);
+      ap_rprintf(r, "size: %lu octets<br>", mbtilesStat.st_size);
+      ap_rprintf(r, "uid: %d<br>", mbtilesStat.st_uid);
+      ap_rprintf(r, "gid: %d<br>", mbtilesStat.st_gid);
+      ap_rprintf(r, "last access: %s<br>", ctime(&mbtilesStat.st_atime));
+      ap_rprintf(r, "last modification: %s<br>", ctime(&mbtilesStat.st_mtime));
+      ap_rprintf(r, "last status change: %s<br>", ctime(&mbtilesStat.st_ctime));
+
+    } else
+      return 404;
+    return OK;
+  }else{
+    ap_set_content_type(r, "image/png");
+    ap_rwrite(tile, tileSize, r);
+    return OK;
+  }
+  */
+  
   ap_set_content_type(r, "image/png");
   ap_rwrite(tile, tileSize, r);
 
