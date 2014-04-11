@@ -101,10 +101,10 @@ static int osm_handler(request_rec *r) {
   x = 0;
   y = 0;
 
-  // moche ... tres tres tres moche !
+  // TODO: moche ... tres tres tres moche !
   sscanf(r->uri, "/%d/%d/%d.png", &z, &x, &y);
 
-  // faire un test sur le rc
+  // TODO: faire un test sur le rc
   rc = sqlite3_open_v2(config.mbtiles, &db, SQLITE_OPEN_READONLY, NULL);
 
   // là ! c'est chiadé comme truc !
