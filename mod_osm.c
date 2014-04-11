@@ -106,6 +106,8 @@ static int osm_handler(request_rec *r) {
 
   rc = sqlite3_open(config.mbtiles, &db);
 
+  y = ((1 << z) - y - 1);
+
   if(SQLITE_OK!=readTile(db, z, x, y, &tile, &tileSize) ){
     sqlite3_close(db);
     return 500;
