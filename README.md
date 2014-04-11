@@ -12,9 +12,7 @@ Module Apache pour rendre des mbtiles OSM
 	     #
 	     LoadModule osm_module /usr/lib/apache2/modules/mod_osm.so
 	     OsmEnabled true # enable du module (true|false)
-	     OsmMbtiles0Path "/var/www/0.mbtiles" # path du mbtiles 0
-	     OsmMbtiles1to9Path "/var/www/osmfr-z1-z9.mbtiles" # path z1 à z9
-	     OsmMbtiles10to14Path "/var/www/osmfr-z10-z14.mbtiles" # path z10 à z14
+	     OsmMbtilesPath "/var/www/z0-z10.mbtiles" # path du mbtiles z0 au z10
 
 	     # 
 	     # balancer 
