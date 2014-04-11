@@ -12,25 +12,19 @@
 
 typedef struct {
   int enabled;
-  const char *to9mbtiles;
-  const char *to14mbtiles;
-  const char *zerombtiles;
+  const char *mbtiles;
 } osm_config;
 
 static void osm_register_hooks (apr_pool_t *p);
 static int osm_handler(request_rec *r);
-const char *osm_set_0mbtiles_path(cmd_parms *cmd, void *cfg, const char *arg);
+const char *osm_set_mbtiles_path(cmd_parms *cmd, void *cfg, const char *arg);
 const char *osm_set_enabled(cmd_parms *cmd, void *cfg, const char *arg);
-const char *osm_set_1to9mbtiles_path(cmd_parms *cmd, void *cfg, const char *arg);
-const char *osm_set_10to14mbtiles_path(cmd_parms *cmd, void *cfg, const char *arg);
 static int callback(void *r, int argc, char **argv, char **azColName);
 static osm_config config;
 
 static const command_rec osm_directives[] = {
   AP_INIT_TAKE1("osmEnabled", osm_set_enabled, NULL, RSRC_CONF, "Enable or disable mod_osm"),
-  AP_INIT_TAKE1("osmMbtiles0Path", osm_set_0mbtiles_path, NULL, RSRC_CONF, "The path to osm db."),
-  AP_INIT_TAKE1("osmMbtiles1to9Path", osm_set_1to9mbtiles_path, NULL, RSRC_CONF, "The path to osm db."),
-  AP_INIT_TAKE1("osmMbtiles10to14Path", osm_set_10to14mbtiles_path, NULL, RSRC_CONF, "The path to osm db."),
+  AP_INIT_TAKE1("osmMbtilesPath", osm_set_mbtiles_path, NULL, RSRC_CONF, "The path to osm db."),
   { NULL }
 };
 
@@ -52,25 +46,13 @@ const char *osm_set_enabled(cmd_parms *cmd, void *cfg, const char *arg) {
   return NULL;
 }
 
-const char *osm_set_0mbtiles_path(cmd_parms *cmd, void *cfg, const char *arg) {
-  config.zerombtiles = arg;
-  return NULL;
-}
-
-const char *osm_set_1to9mbtiles_path(cmd_parms *cmd, void *cfg, const char *arg) {
-  config.to9mbtiles = arg;
-  return NULL;
-}
-
-const char *osm_set_10to14mbtiles_path(cmd_parms *cmd, void *cfg, const char *arg) {
-  config.to14mbtiles = arg;
+const char *osm_set_mbtiles_path(cmd_parms *cmd, void *cfg, const char *arg) {
+  config.mbtiles = arg;
   return NULL;
 }
 
 static void osm_register_hooks (apr_pool_t *p) { 
-  config.zerombtiles = "/tmp/0.mbtiles";
-  config.to9mbtiles = "/tmp/osmfr-z1-z9.mbtiles";
-  config.to14mbtiles = "/tmp/osmfr-z10-z14.mbtiles";
+  config.mbtiles = "/tmp/0.mbtiles";
   ap_hook_handler(osm_handler, NULL, NULL, APR_HOOK_MIDDLE); 
 } 
 
@@ -108,7 +90,7 @@ static int readTile(sqlite3 *db, const int z, const int x, const int y, unsigned
 }
 
 static int osm_handler(request_rec *r) {
-  if (!r->handler || config.enabled == 0) return(DECLINED);
+  if (!r->handler || config.enabled == 0 || strcmp(r->handler, "osm-handler")) return(DECLINED);
 
   sqlite3 *db;
   unsigned char *tile;
@@ -122,18 +104,9 @@ static int osm_handler(request_rec *r) {
   // moche ... tres tres tres moche !
   sscanf(r->uri, "/%d/%d/%d.png", &z, &x, &y);
 
-  if(z == 0)
-    mbtilePath = config.zerombtiles;
-  else if(z >= 1 && z <= 9)
-    mbtilePath = config.to9mbtiles;
-  else if(z >= 10 && z <= 14)
-    mbtilePath = config.to14mbtiles;
-  else 
-    return 404;
+  rc = sqlite3_open(config.mbtiles, &db);
 
-  rc = sqlite3_open(mbtilePath, &db);
-  
-  if(SQLITE_OK!=readTile(db, z, x , y, &tile, &tileSize) ){
+  if(SQLITE_OK!=readTile(db, z, x, y, &tile, &tileSize) ){
     sqlite3_close(db);
     return 500;
   }
