@@ -53,7 +53,7 @@ const char *osm_set_mbtiles_path(cmd_parms *cmd, void *cfg, const char *arg) {
 
 static void osm_register_hooks (apr_pool_t *p) { 
   config.mbtiles = "/tmp/0.mbtiles";
-  ap_hook_handler(osm_handler, NULL, NULL, APR_HOOK_MIDDLE); 
+  ap_hook_handler(osm_handler, NULL, NULL, APR_HOOK_MIDDLE);
 } 
 
 static int readTile(sqlite3 *db, const int z, const int x, const int y, unsigned char **pTile, int *psTile ) {
@@ -104,7 +104,8 @@ static int osm_handler(request_rec *r) {
   // moche ... tres tres tres moche !
   sscanf(r->uri, "/%d/%d/%d.png", &z, &x, &y);
 
-  rc = sqlite3_open(config.mbtiles, &db);
+  // faire un test sur le rc
+  rc = sqlite3_open_v2(config.mbtiles, &db, SQLITE_OPEN_READONLY, NULL);
 
   y = ((1 << z) - y - 1);
 
