@@ -107,6 +107,7 @@ static int osm_handler(request_rec *r) {
   // faire un test sur le rc
   rc = sqlite3_open_v2(config.mbtiles, &db, SQLITE_OPEN_READONLY, NULL);
 
+  // là ! c'est chiadé comme truc !
   y = ((1 << z) - y - 1);
 
   if(SQLITE_OK!=readTile(db, z, x, y, &tile, &tileSize) ){
