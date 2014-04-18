@@ -8,6 +8,7 @@
 #include "util_script.h" 
 #include "http_connection.h"
 
+#include <regex.h> 
 #include <sqlite3.h>
 
 typedef struct {
@@ -23,8 +24,9 @@ static int callback(void *r, int argc, char **argv, char **azColName);
 static osm_config config;
 
 static const command_rec osm_directives[] = {
-  AP_INIT_TAKE1("osmEnabled", osm_set_enabled, NULL, RSRC_CONF, "Enable or disable mod_osm"),
-  AP_INIT_TAKE1("osmMbtilesPath", osm_set_mbtiles_path, NULL, RSRC_CONF, "The path to osm db."),
+  // OR_ALL : pour pouvoir mettre la cfg n'import où dans le vhost (dans un <Location> par ex)
+  AP_INIT_TAKE1("osmEnabled", osm_set_enabled, NULL, OR_ALL, "Enable or disable mod_osm"),
+  AP_INIT_TAKE1("osmMbtilesPath", osm_set_mbtiles_path, NULL, OR_ALL, "The path to osm db."),
   { NULL }
 };
 
@@ -39,7 +41,7 @@ module AP_MODULE_DECLARE_DATA osm_module = {
 };
 
 const char *osm_set_enabled(cmd_parms *cmd, void *cfg, const char *arg) {
-  if(!strcasecmp(arg, "true")) 
+  if(!apr_strnatcasecmp(arg, "true")) 
     config.enabled = 1;
   else 
     config.enabled = 0;
@@ -53,7 +55,8 @@ const char *osm_set_mbtiles_path(cmd_parms *cmd, void *cfg, const char *arg) {
 
 static void osm_register_hooks (apr_pool_t *p) { 
   config.mbtiles = "/tmp/0.mbtiles";
-  ap_hook_handler(osm_handler, NULL, NULL, APR_HOOK_MIDDLE);
+  config.enabled = 0;
+  ap_hook_handler(osm_handler, NULL, NULL, APR_HOOK_LAST);
 } 
 
 static int readTile(sqlite3 *db, const int z, const int x, const int y, unsigned char **pTile, int *psTile ) {
@@ -67,7 +70,7 @@ static int readTile(sqlite3 *db, const int z, const int x, const int y, unsigned
 
   do {
     rc = sqlite3_prepare(db, sql, -1, &pStmt, 0);
-    if( rc!=SQLITE_OK ){
+    if(rc!=SQLITE_OK){
       return rc;
     }
 
@@ -84,76 +87,57 @@ static int readTile(sqlite3 *db, const int z, const int x, const int y, unsigned
 
     rc = sqlite3_finalize(pStmt);
 
-  } while( rc==SQLITE_SCHEMA );
+  } while(rc==SQLITE_SCHEMA);
 
   return rc;
 }
 
 static int osm_handler(request_rec *r) {
+
   if (!r->handler || config.enabled == 0 || strcmp(r->handler, "osm-handler")) return(DECLINED);
 
   sqlite3 *db;
   unsigned char *tile;
-  char const *mbtilePath;
-  int tileSize,rc,z,x,y;
+  int tileSize,z,x,y;
 
+  db = NULL;
+  tile = NULL;
+  tileSize = 0;
   z = 0;
   x = 0;
   y = 0;
 
-  // TODO: moche ... tres tres tres moche !
+  /*
+     TODO: moche ... tres tres tres moche !
+     changer par ap_rxplus (apache 2.4)
+     http://svn.apache.org/repos/asf/httpd/sandbox/replacelimit/include/ap_regex.h
+  */
+
   sscanf(r->uri, "/%d/%d/%d.png", &z, &x, &y);
 
-  // TODO: faire un test sur le rc
-  rc = sqlite3_open_v2(config.mbtiles, &db, SQLITE_OPEN_READONLY, NULL);
-
   // là ! c'est chiadé comme truc !
-  y = ((1 << z) - y - 1);
+  if(y != 0)
+    y = ((1 << z) - y - 1);
 
-  if(SQLITE_OK!=readTile(db, z, x, y, &tile, &tileSize) ){
+  if(SQLITE_OK!=sqlite3_open_v2(config.mbtiles, &db, SQLITE_OPEN_READONLY, NULL)) {
+    sqlite3_close(db);
+    ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "cnx mbtiles not possible.");
+    return 500;
+  }
+
+  if(SQLITE_OK!=readTile(db, z, x, y, &tile, &tileSize) ) {
+    ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "impos to read tile in mbtiles.");
     sqlite3_close(db);
     return 500;
   }
   
   if(!tile){
     sqlite3_close(db);
+    ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r, "tile %d/%d/%d.png not found", x, y, z);
     return 404;
   }
 
-  /* Marche en 2.4.7 (unstable debian)
-  apr_table_t *GET;
-  ap_args_to_table(r, &GET);
-  const char *getQuery;
-  struct stat mbtilesStat;
-
-  getQuery = apr_table_get(GET, "q");
-
-  if(NULL != getQuery) {
-    ap_set_content_type(r, "text/html");
-    if(!strcmp(getQuery, "getinfo")) {
-      stat(config.mbtiles, &mbtilesStat);
-
-      ap_rprintf(r, "<h1>mod_osm - Information</h1><hr>");
-      ap_rprintf(r, "uri : %s<br>", r->uri);
-      ap_rprintf(r, "<hr>");
-      ap_rprintf(r, "mbtiles path: %s<br>", config.mbtiles);
-      ap_rprintf(r, "size: %lu octets<br>", mbtilesStat.st_size);
-      ap_rprintf(r, "uid: %d<br>", mbtilesStat.st_uid);
-      ap_rprintf(r, "gid: %d<br>", mbtilesStat.st_gid);
-      ap_rprintf(r, "last access: %s<br>", ctime(&mbtilesStat.st_atime));
-      ap_rprintf(r, "last modification: %s<br>", ctime(&mbtilesStat.st_mtime));
-      ap_rprintf(r, "last status change: %s<br>", ctime(&mbtilesStat.st_ctime));
-
-    } else
-      return 404;
-    return OK;
-  }else{
-    ap_set_content_type(r, "image/png");
-    ap_rwrite(tile, tileSize, r);
-    return OK;
-  }
-  */
-  
+  ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r, "get tile : %d/%d/%d.png", x, y, z);
   ap_set_content_type(r, "image/png");
   ap_rwrite(tile, tileSize, r);
 
