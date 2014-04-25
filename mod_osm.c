@@ -8,7 +8,6 @@
 #include "util_script.h" 
 #include "http_connection.h"
 
-#include <regex.h> 
 #include <sqlite3.h>
 
 typedef struct {
@@ -56,7 +55,7 @@ const char *osm_set_mbtiles_path(cmd_parms *cmd, void *cfg, const char *arg) {
 static void osm_register_hooks (apr_pool_t *p) { 
   config.mbtiles = "/tmp/0.mbtiles";
   config.enabled = 0;
-  ap_hook_handler(osm_handler, NULL, NULL, APR_HOOK_LAST);
+  ap_hook_handler(osm_handler, NULL, NULL, APR_HOOK_FIRST);
 } 
 
 static int readTile(sqlite3 *db, const int z, const int x, const int y, unsigned char **pTile, int *psTile ) {
@@ -65,8 +64,8 @@ static int readTile(sqlite3 *db, const int z, const int x, const int y, unsigned
   sqlite3_stmt *pStmt;
   int rc;
 
-  *pTile = 0;
-  *psTile = 0;
+  *pTile = NULL;
+  *psTile = NULL;
 
   do {
     rc = sqlite3_prepare(db, sql, -1, &pStmt, 0);
@@ -94,7 +93,8 @@ static int readTile(sqlite3 *db, const int z, const int x, const int y, unsigned
 
 static int osm_handler(request_rec *r) {
 
-  if (!r->handler || config.enabled == 0 || strcmp(r->handler, "osm-handler")) return(DECLINED);
+  //if (!r->handler || config.enabled == 0 || strcmp(r->handler, "osm-handler")) return(DECLINED);
+  if (config.enabled == 0) return(DECLINED);
 
   sqlite3 *db;
   unsigned char *tile;
@@ -108,9 +108,9 @@ static int osm_handler(request_rec *r) {
   y = 0;
 
   /*
-     TODO: moche ... tres tres tres moche !
-     changer par ap_rxplus (apache 2.4)
-     http://svn.apache.org/repos/asf/httpd/sandbox/replacelimit/include/ap_regex.h
+    TODO: moche ... tres tres tres moche !
+    changer par ap_rxplus (apache 2.4)
+    http://svn.apache.org/repos/asf/httpd/sandbox/replacelimit/include/ap_regex.h
   */
 
   sscanf(r->uri, "/%d/%d/%d.png", &z, &x, &y);
@@ -122,23 +122,24 @@ static int osm_handler(request_rec *r) {
   if(SQLITE_OK!=sqlite3_open_v2(config.mbtiles, &db, SQLITE_OPEN_READONLY, NULL)) {
     sqlite3_close(db);
     ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "cnx mbtiles not possible.");
-    return 500;
+    return HTTP_INTERNAL_SERVER_ERROR;
   }
 
   if(SQLITE_OK!=readTile(db, z, x, y, &tile, &tileSize) ) {
     ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "impos to read tile in mbtiles.");
     sqlite3_close(db);
-    return 500;
+    return(DECLINED);
   }
   
-  if(!tile){
+  if(NULL == tile){
     sqlite3_close(db);
-    ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r, "tile %d/%d/%d.png not found", x, y, z);
-    return 404;
+    ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r, "tile %d/%d/%d.png not found", z, x, y);
+    return(DECLINED);
   }
 
-  ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r, "get tile : %d/%d/%d.png", x, y, z);
-  ap_set_content_type(r, "image/png");
+  ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r, "get tile (size:%d) : %d/%d/%d.png", tileSize, z, x, y);
+  
+  ap_set_content_type(r, "image/png");  
   ap_rwrite(tile, tileSize, r);
 
   sqlite3_close(db);
