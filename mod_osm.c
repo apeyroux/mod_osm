@@ -60,7 +60,7 @@ static void osm_register_hooks (apr_pool_t *p) {
 
 static int readTile(sqlite3 *db, const int z, const int x, const int y, unsigned char **pTile, int *psTile ) {
 
-  const char *sql = "SELECT tile_data from tiles where zoom_level=? and tile_column=? and tile_row=?;";;
+  const char *sql = "SELECT tile_data from tiles where zoom_level=? and tile_column=? and tile_row=?;";
   sqlite3_stmt *pStmt;
   int rc;
 
